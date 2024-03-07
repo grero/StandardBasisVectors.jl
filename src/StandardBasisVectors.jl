@@ -63,18 +63,23 @@ function reduce_dimensions(N::Integer, i::Integer, V::AbstractMatrix{T}) where T
 end
 
 function orient_vectors(V::AbstractMatrix{T}) where T <: Real
+    size(V,1) == size(V,2) || error("Matrix should be square")
     _V = similar(V)
     _V .= V
     N = size(V,1)
     signflip = zeros(T, N)
     θ = zeros(T,size(V)...) 
     for i in 1:N
-        if _V[i,i] >= 0.0
+        @inbounds if _V[i,i] >= 0.0
             signflip[i] = 1.0
         else
             signflip[i] = -1.0
         end
-        _V[:,i] .= _V[:,i].*signflip[i]
+        si = signflip[i]
+        for j in 1:N 
+            @inbounds _V[j,i] *= si
+        end
+
         _V, θ[:,i] = reduce_dimensions(N,i,_V)
     end
     return V*diagm(signflip), signflip,θ 
