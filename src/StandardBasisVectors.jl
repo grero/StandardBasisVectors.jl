@@ -3,6 +3,11 @@ using LinearAlgebra
 
 export standardize_basis
 
+function reset!(M, v, didx)
+    fill!(M, 0.0)
+    view(M,didx) .= v
+end
+
 function rot(N::Integer, i,j,θ::T) where T <: Real
     R = diagm(fill(one(T),N) )
     rot!(R, i,j,θ)
@@ -20,10 +25,12 @@ function rot!(R::AbstractMatrix{T}, i,j, θ) where T <: Real
 end
 
 function get_rotation_matrix(N::Integer, i::Integer, θ::Vector{T}) where T <:Real
-    R = Matrix{T}(I(N)) 
-    Rt = fill!(similar(R), 0.0)
+    R = diagm(fill(one(T),N)) 
+    Rt = diagm(fill(one(T),N)) 
+    didx = diagind(Rt)
     for j in range(N, stop=i+1, step=-1)
-        rot!(Rt, i,j, θ[j])
+        reset!(Rt, 1.0, didx)
+        rot!(Rt, i,j,θ[j])
         R .= Rt*R
     end
     R
@@ -32,8 +39,6 @@ end
 function get_rotation_angles(N::Integer,i::Integer,v::AbstractVector{T}) where T <: Real
     θ = zeros(T,N)
     r = one(T)
-
-    # do first step first
     θ[N] = asin(v[N])
     for j in range(N-1, stop=i+1, step=-1)
         y = v[j]
