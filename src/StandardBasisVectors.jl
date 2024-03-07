@@ -3,6 +3,11 @@ using LinearAlgebra
 
 export standardize_basis
 
+function reset!(M, v, didx)
+    fill!(M, 0.0)
+    view(M,didx) .= v
+end
+
 function rot(N::Integer, i,j,θ::T) where T <: Real
     R = diagm(fill(one(T),N) )
     rot!(R, i,j,θ)
@@ -21,16 +26,21 @@ end
 
 function get_rotation_matrix(N::Integer, i::Integer, θ::Vector{T}) where T <:Real
     R = diagm(fill(one(T),N)) 
+    Rt = diagm(fill(one(T),N)) 
+    didx = diagind(Rt)
     for j in range(N, stop=i+1, step=-1)
-        R .= rot(N, i,j, θ[j])*R
+        reset!(Rt, 1.0, didx)
+        rot!(Rt, i,j,θ[j])
+        R .= Rt*R
     end
     R
 end
 
 function get_rotation_angles(N::Integer,i::Integer,v::AbstractVector{T}) where T <: Real
-    θ = zeros(T,N+1)
+    θ = zeros(T,N)
     r = one(T)
-    for j in range(N, stop=i+1, step=-1)
+    θ[N] = asin(v[N])
+    for j in range(N-1, stop=i+1, step=-1)
         y = v[j]
         r = r*cos(θ[j+1])
         if r != 0
@@ -39,14 +49,14 @@ function get_rotation_angles(N::Integer,i::Integer,v::AbstractVector{T}) where T
             θ[j] = 0.0
         end
     end
-    θ[1:N]
+    θ
 end
 
 function reduce_dimensions(N::Integer, i::Integer, V::AbstractMatrix{T}) where T <: Real
     if i == N
         return V, zeros(T, N)
     end
-    v = V[:,i]
+    v = view(V,:,i)
     θ = get_rotation_angles(N,i,v)
     R = get_rotation_matrix(N, i, θ)
     return R'*V, θ
