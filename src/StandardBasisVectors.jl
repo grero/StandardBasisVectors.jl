@@ -3,6 +3,22 @@ using LinearAlgebra
 
 export standardize_basis
 
+struct RotationMatrix{T<:Real}
+    R::Matrix{T}
+    Rt::Matrix{T}
+    R2::Matrix{T}
+    didx::AbstractVector{Int64}
+    N::Int64
+end
+
+function RotationMatrix(N::Integer)
+    R = diagm(fill(1.0,N)) 
+    Rt = diagm(fill(1.0,N)) 
+    R2 = fill(0.0, N,N)
+    didx = diagind(Rt)
+    RotationMatrix(R,Rt,R2,didx,N)
+end
+
 function reset!(M, v, didx)
     fill!(M, 0.0)
     view(M,didx) .= v
@@ -36,6 +52,16 @@ function get_rotation_matrix(N::Integer, i::Integer, θ::Vector{T}) where T <:Re
     R
 end
 
+function get_rotation_matrix!(R::RotationMatrix{T}, i::Integer, θ::Vector{T}) where T <: Real
+    reset!(R.R, 1.0, R.didx)
+    for j in range(R.N, stop=i+1, step=-1)
+        reset!(R.Rt, 1.0, R.didx)
+        rot!(R.Rt, i,j,θ[j])
+        mul!(R.R2, R.Rt, R.R)
+        copy!(R.R, R.R2)
+    end
+end
+
 function get_rotation_angles(N::Integer,i::Integer,v::AbstractVector{T}) where T <: Real
     θ = zeros(T,N)
     r = one(T)
@@ -52,6 +78,18 @@ function get_rotation_angles(N::Integer,i::Integer,v::AbstractVector{T}) where T
     θ
 end
 
+function reduce_dimensions!(Vo::AbstractMatrix{T}, R::RotationMatrix{T}, i::Integer, V::AbstractMatrix{T}) where T <: Real
+    if i == R.N
+        copy!(Vo, V)
+        return zeros(T, R.N)
+    end
+    v = view(V,:,i)
+    θ = get_rotation_angles(R.N,i,v)
+    get_rotation_matrix!(R, i, θ)
+    mul!(Vo, R.R',V)
+    return θ
+end
+
 function reduce_dimensions(N::Integer, i::Integer, V::AbstractMatrix{T}) where T <: Real
     if i == N
         return V, zeros(T, N)
@@ -65,10 +103,12 @@ end
 function orient_vectors(V::AbstractMatrix{T}) where T <: Real
     size(V,1) == size(V,2) || error("Matrix should be square")
     _V = similar(V)
+    _Vt = similar(V)
     _V .= V
     N = size(V,1)
     signflip = zeros(T, N)
     θ = zeros(T,size(V)...) 
+    R = RotationMatrix(N)
     for i in 1:N
         @inbounds if _V[i,i] >= 0.0
             signflip[i] = 1.0
@@ -80,7 +120,8 @@ function orient_vectors(V::AbstractMatrix{T}) where T <: Real
             @inbounds _V[j,i] *= si
         end
 
-        _V, θ[:,i] = reduce_dimensions(N,i,_V)
+        θ[:,i] = reduce_dimensions!(_Vt, R, i,_V)
+        copy!(_V, _Vt)
     end
     return V*diagm(signflip), signflip,θ 
 end
