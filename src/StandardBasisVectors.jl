@@ -11,16 +11,16 @@ struct RotationMatrix{T<:Real}
     N::Int64
 end
 
-function RotationMatrix(N::Integer)
-    R = diagm(fill(1.0,N)) 
-    Rt = diagm(fill(1.0,N)) 
-    R2 = fill(0.0, N,N)
+function RotationMatrix(::Type{T}, N::Integer) where T <: Real
+    R = diagm(fill(one(T),N))
+    Rt = diagm(fill(one(T),N))
+    R2 = fill(zero(T), N,N)
     didx = diagind(Rt)
     RotationMatrix(R,Rt,R2,didx,N)
 end
 
-function reset!(M, v, didx)
-    fill!(M, 0.0)
+function reset!(M::AbstractMatrix{T}, v, didx) where T <: Real
+    fill!(M, zero(T))
     view(M,didx) .= v
 end
 
@@ -41,11 +41,11 @@ function rot!(R::AbstractMatrix{T}, i,j, θ) where T <: Real
 end
 
 function get_rotation_matrix(N::Integer, i::Integer, θ::Vector{T}) where T <:Real
-    R = diagm(fill(one(T),N)) 
-    Rt = diagm(fill(one(T),N)) 
+    R = diagm(fill(one(T),N))
+    Rt = diagm(fill(one(T),N))
     didx = diagind(Rt)
     for j in range(N, stop=i+1, step=-1)
-        reset!(Rt, 1.0, didx)
+        reset!(Rt, one(T), didx)
         rot!(Rt, i,j,θ[j])
         R .= Rt*R
     end
@@ -53,9 +53,9 @@ function get_rotation_matrix(N::Integer, i::Integer, θ::Vector{T}) where T <:Re
 end
 
 function get_rotation_matrix!(R::RotationMatrix{T}, i::Integer, θ::Vector{T}) where T <: Real
-    reset!(R.R, 1.0, R.didx)
+    reset!(R.R, one(T), R.didx)
     for j in range(R.N, stop=i+1, step=-1)
-        reset!(R.Rt, 1.0, R.didx)
+        reset!(R.Rt, one(T), R.didx)
         rot!(R.Rt, i,j,θ[j])
         mul!(R.R2, R.Rt, R.R)
         copy!(R.R, R.R2)
@@ -72,7 +72,7 @@ function get_rotation_angles(N::Integer,i::Integer,v::AbstractVector{T}) where T
         if r != 0
             θ[j] = asin(y/r)
         else
-            θ[j] = 0.0
+            θ[j] = zero(T)
         end
     end
     θ
@@ -107,23 +107,23 @@ function orient_vectors(V::AbstractMatrix{T}) where T <: Real
     _V .= V
     N = size(V,1)
     signflip = zeros(T, N)
-    θ = zeros(T,size(V)...) 
-    R = RotationMatrix(N)
+    θ = zeros(T,size(V)...)
+    R = RotationMatrix(T,N)
     for i in 1:N
-        @inbounds if _V[i,i] >= 0.0
-            signflip[i] = 1.0
+        @inbounds if _V[i,i] >= zero(T)
+            signflip[i] = one(T)
         else
-            signflip[i] = -1.0
+            signflip[i] = -one(T)
         end
         si = signflip[i]
-        for j in 1:N 
+        for j in 1:N
             @inbounds _V[j,i] *= si
         end
 
         θ[:,i] = reduce_dimensions!(_Vt, R, i,_V)
         copy!(_V, _Vt)
     end
-    return V*diagm(signflip), signflip,θ 
+    return V*diagm(signflip), signflip,θ
 end
 
 function standardize_basis(Q::AbstractMatrix{T}) where T <: Real
